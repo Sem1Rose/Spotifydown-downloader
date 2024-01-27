@@ -34,7 +34,7 @@ Download Spotify playlists and tracks using **[Spotifydown](https://spotifydown.
 
 - `-h`, `-help`: Shows help.
 
-- `-u`, `--url`: Sets the URL of the playlist/track to be downloaded. <sub><sup>**required**</sup></sub>
+- `-u`, `--url`: Sets the URL of the playlist/album/track to be downloaded. <sub><sup>**required**</sup></sub>
 
   - Usage: `spotifydown_downloader.py -u <url>`
 
@@ -66,7 +66,7 @@ Download Spotify playlists and tracks using **[Spotifydown](https://spotifydown.
     ```bash
     spotifydown_downloader.py https://open.spotify.com/playlist/6CrBHln7J1YeiZPusKbQr8 -r 10
     ```
-- Download tracks from 3-12 (inclusive) from a playlist:
+- Download tracks 3-12 (inclusive) from a playlist:
     ```bash
     spotifydown_downloader.py https://open.spotify.com/playlist/6CrBHln7J1YeiZPusKbQr8 -r 10
     ```
