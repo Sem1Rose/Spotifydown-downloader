@@ -2,7 +2,7 @@
 
 # Spotifydown downloader
 
-Download Spotify playlists and tracks using **[Spotifydown](spotifydown.com)**
+Download Spotify playlists and tracks using **[Spotifydown](https://spotifydown.com)**
 
 </div>
 
@@ -32,7 +32,7 @@ Download Spotify playlists and tracks using **[Spotifydown](spotifydown.com)**
 <details>
 <summary>Available options</summary>
 
-- `-h`, `-help`: Show help.
+- `-h`, `-help`: Shows help.
 
 - `-u`, `--url`: Sets the URL of the playlist/track to be downloaded. <sub><sup>**required**</sup></sub>
 
