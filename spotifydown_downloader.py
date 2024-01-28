@@ -251,16 +251,16 @@ if __name__ == '__main__':
             print_error('Can\'t change Range when donwlaoding a track.')
 
     options = webdriver.ChromeOptions()
-    options.headless = True
     options.add_experimental_option("excludeSwitches", ["enable-logging"])
-    options.add_experimental_option(
-        "prefs", {"download.default_directory": download_path, "directory_upgrade": True})
-
+    options.add_argument('--headless')
+    options.add_argument('--disable-gpu')
+    options.add_argument("--log-level=3")
+    options.add_experimental_option("prefs", {"download.default_directory": download_path, "directory_upgrade": True})
     driver = webdriver.Chrome(options=options)
-    driver.minimize_window()
+    sys.stdout.write("\033[F" + ' ' * 100 + "\033[F\r")
+    
 
     metadata = get_tracks_meta(url)
-
     if start_index > len(metadata):
         print_error('Offset was beyond playlist size')
     if stop_index != int(9e9) and stop_index > len(metadata):
