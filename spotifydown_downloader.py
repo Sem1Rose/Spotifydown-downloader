@@ -1,9 +1,9 @@
 import unicodedata
 import re
 import os
-import sys
 import math
 import spotipy
+import argparse
 
 from time import sleep
 from selenium import webdriver
@@ -11,7 +11,7 @@ from selenium.webdriver.common.by import By
 from pathlib import Path
 from colorama import Fore
 from os import listdir
-from os.path import isfile, join
+from os.path import isfile, exists, join
 from sys import exit
 from dotenv import load_dotenv
 from spotipy.oauth2 import SpotifyClientCredentials
@@ -34,12 +34,52 @@ def get_tracks_meta(id):
     return tracks
 
 
-def print_help():
-    print('\nUsage:\n\tspotify_downloader [options]\n\nOptions:\n\t-h, --help\t\t\tShow help.\n\t-u, --url <url>\t\t\tSets the URL of the playlist/track to be downloaded to <url>.\n\t-o, --output-path <path>\tSet output path to <path>, default is Music directory.\n\t-s, --start-index\t\tSet the download offset (i.e. index of the first song to be downloaded.)\n\t-r, --range\t\tSet the number of tracks to be downloaded from the playlist/album. Can be used with the -s flag to download a portion of the playlist.')
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description='Download Spotify playlists and tracks using Spotifydown.com', usage='%(prog)s <url> [options]')
+
+    parser.add_argument(
+        'url', help='URL of the playlist/album/track to be downloaded.')
+    parser.add_argument('-o', '--output-path', dest='path', default=str(
+        Path.home() / "Music/"), help='Sets the output path to <PATH>.')
+    parser.add_argument('-s', '--start-index', dest='index', default=1, type=int,
+                        help='Set the index of the first song to be downloaded to <INDEX>.')
+    parser.add_argument('-r', '--range', default=int(9e9), type=int,
+                        help='Set the number of tracks to be downloaded from the playlist/album to <RANGE>.')
+
+    return parser.parse_args()
 
 
-def print_error(error):
-    print(f'{Fore.RED}{error}{Fore.WHITE}')
+def process_args(args):
+    if not exists(args.path):
+        print_error('Path doesn\'t exist: ', args.path, '.')
+
+    if args.index < 1:
+        print_error('Start index must be a non-zero positive integer!')
+
+    if args.range < 1:
+        print_error('Range must be a non-zero positive integer!')
+
+    if not re.match(r"https://open.spotify.com/(.*)", args.url):
+        print_error("Expected URL format: https://open.spotify.com/...")
+
+    return args
+
+
+def init_driver():
+    options = webdriver.ChromeOptions()
+    options.add_experimental_option("excludeSwitches", ["enable-logging"])
+    options.add_argument('--headless')
+    options.add_argument('--disable-gpu')
+    options.add_argument("--log-level=3")
+    options.add_experimental_option(
+        "prefs", {"download.default_directory": download_path, "directory_upgrade": True})
+
+    return webdriver.Chrome(options=options)
+
+
+def print_error(*error):
+    print(f'{Fore.RED}', ''.join(error), f'{Fore.WHITE}')
     exit()
 
 
@@ -68,7 +108,7 @@ def get_current_page_tracks(load_more, page):
     if load_more:
         for _ in range(page):
             if len(get_buttons()) <= 100:
-                print_error('Offset was beyond playlist size')
+                print_error('Start index was beyond playlist size')
 
             get_buttons()[-1].click()
             sleep(1)
@@ -90,8 +130,15 @@ def download_song(download_button):
     sleep(2)
 
 
+def replace(str:str, strs:str, replace_with:str):
+    for i in strs:
+        str = str.replace(i, replace_with)
+    
+    return str
+
+
 def remove_invalid_chars(s):
-    return re.sub('[^\x00-\x7F]', '_', unicodedata.normalize('NFKD', s.replace('\\', '_').replace('/', '_').replace(':', '_').replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_')).encode('ascii', 'ignore').decode('ascii'))
+    return re.sub('[^\x00-\x7F]', '_', unicodedata.normalize('NFKD', replace(s, '\/:*?"<>|', '_')).encode('ascii', 'ignore').decode('ascii'))
 
 
 def rename_file(index):
@@ -122,152 +169,50 @@ def rename_file(index):
         break
 
 
-sp = spotipy.Spotify(
-    client_credentials_manager=SpotifyClientCredentials(
-        client_id=os.getenv("CLIENT_ID", ""), client_secret=os.getenv("CLIENT_SECRET", ""))
-)
-
-download_path = str(Path.home() / "Music/")
-download_type = 0       # 0: playlist, 1: album, 2: track
-load_more = False
-page = 0
-start_index = 0
-stop_index = int(9e9)
-url = ''
 if __name__ == '__main__':
-    if len(sys.argv) <= 1:
-        print_help()
-        exit()
+    args = process_args(parse_args())
 
-    i = 1
-    while i < len(sys.argv):
-        if sys.argv[i] == '-h' or sys.argv[i] == '--help':
-            if i + 1 != len(sys.argv):
-                print_error(
-                    f'{sys.argv[i]} flag doesn\'t accept any arguments!')
+    url = args.url
 
-            print_help()
-            exit()
-        elif i == 1:
-            input = sys.argv[i]
-            if not re.match(r'https://open.spotify.com/(.*)', input):
-                break
+    index = args.index - 1
+    page = math.floor(index / 100)
+    load_more = page > 0
+    start_index = index % 100
 
-            type = input.split('/')[3]
-            if type == 'playlist':
-                download_type = 0
-            elif type == 'album':
-                download_type = 1
-            elif type == 'track':
-                download_type = 2
-            else:
-                print_error('Unsupported URL')
+    stop_index = index + args.range
 
-            url = input
-        elif sys.argv[i] == '-u' or sys.argv[i] == '--url':
-            if url != '':
-                if i + 1 < len(sys.argv):
-                    print_error(
-                        f'Multiple URLs were provided: {url}, {sys.argv[i + 1]}')
-                else:
-                    print_error(
-                        f'Can\'t use the {sys.argv[i]} after providing a URL')
+    download_path = f'{args.path}\\'
 
-            if i + 1 == len(sys.argv):
-                print_error(
-                    f'Expected playlist URL after the {sys.argv[i]} flag')
+    type = url.split('/')[3]
+    if type == 'playlist':
+        download_type = 0
+    elif type == 'album':
+        download_type = 1
+    elif type == 'track':
+        download_type = 2
+    else:
+        print_error('Unsupported URL')
 
-            url = sys.argv[i + 1]
-            if not re.match(r"https://open.spotify.com/(.*)", url):
-                print_error(
-                    "Expected URL format: https://open.spotify.com/...")
-
-            type = url.split('/')[3]
-            if type == 'playlist':
-                download_type = 0
-            elif type == 'album':
-                download_type = 1
-            elif type == 'track':
-                download_type = 2
-            else:
-                print_error('Unsupported URL')
-
-            i += 1
-        elif sys.argv[i] == '-o' or sys.argv[i] == '--output-path':
-            if i + 1 == len(sys.argv):
-                print_error(
-                    f'Expected download path after the {sys.argv[i]} flag')
-
-            download_path = f'{sys.argv[i + 1]}\\'
-            i += 1
-        elif sys.argv[i] == '-s' or sys.argv[i] == '--start-index':
-            if i + 1 == len(sys.argv):
-                print_error(
-                    f'Expected start index after the {sys.argv[i]} flag')
-
-            try:
-                offset = int(sys.argv[i + 1]) - 1
-            except:
-                print_error(
-                    'Offset must be a positive integer less than the size of the playlist.')
-
-            if offset < -1:
-                print_error('Offset must be a positive integer less than the size of the playlist.')
-            elif offset == -1:
-                offset = 0
-
-            page = math.floor(offset / 100)
-            load_more = page > 0
-            start_index = offset % 100
-
-            i += 1
-        elif sys.argv[i] == '-r' or sys.argv[i] == '--range':
-            if i + 1 == len(sys.argv):
-                print_error(
-                    f'Expected range after the {sys.argv[i]} flag')
-
-            try:
-                r = int(sys.argv[i + 1])
-            except:
-                print_error('Range must be a positive integer.')
-
-            if r < 0:
-                print_error(
-                    'Range must be a positive integer.')
-
-            stop_index = start_index + r
-            i += 1
-        else:
-            print_error(f'Unknown argument: {sys.argv[i]}')
-
-        i += 1
-
-    if url == '':
-        print_error('No URL was provided')
     if download_type == 2:
         if start_index != 0:
-            print_error('Can\'t change Offset when downloading a track.')
-        if stop_index != int(9e9):
+            print_error('Can\'t change Start index when downloading a track.')
+        if args.range != int(9e9):
             print_error('Can\'t change Range when donwlaoding a track.')
 
-    options = webdriver.ChromeOptions()
-    options.add_experimental_option("excludeSwitches", ["enable-logging"])
-    options.add_argument('--headless')
-    options.add_argument('--disable-gpu')
-    options.add_argument("--log-level=3")
-    options.add_experimental_option("prefs", {"download.default_directory": download_path, "directory_upgrade": True})
-    driver = webdriver.Chrome(options=options)
-    sys.stdout.write("\033[F" + ' ' * 100 + "\033[F\r")
-    
+    sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
+        client_id=os.getenv("CLIENT_ID", ""), client_secret=os.getenv("CLIENT_SECRET", "")))
+
+    driver = init_driver()
+    print("\033[F" + ' ' * 100 + "\033[F\r", end='')
 
     metadata = get_tracks_meta(url)
-    if start_index > len(metadata):
-        print_error('Offset was beyond playlist size')
-    if stop_index != int(9e9) and stop_index > len(metadata):
+    if start_index > len(metadata) - 1:
+        print_error('Start index was beyond playlist size')
+    if args.range != int(9e9) and stop_index > len(metadata):
         print_error('Range was beyond playlist size')
 
     print(f'{Fore.GREEN}Downloading {Fore.LIGHTBLUE_EX}{(1 if download_type == 2 else min(stop_index - start_index, len(metadata) - start_index))}{Fore.GREEN} track' +
-          ('s' if min(stop_index - start_index, len(metadata) - start_index) > 1 and download_type != 2 else '') + f'{Fore.WHITE}')
+          (f's{Fore.WHITE}' if download_type != 2 and min(stop_index - start_index, len(metadata) - start_index) > 1 else f'{Fore.WHITE}'))
 
     p = 0
     t = 0
