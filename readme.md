@@ -24,9 +24,9 @@ Download Spotify playlists and tracks using **[Spotifydown](https://spotifydown.
        - On your windows machine, open Search and search for `Edit the system environment variables`.
        - Click on `Environment Variables`.
        - In the system variables section, click on `New`.
-         - In the Variable name, enter `CLIENT_ID`.
+         - In the Variable name, enter `SPOTIPY_CLIENT_ID`.
          - In the Variable value, enter your Client ID.
-       - Repeat the last step again, enter `CLIENT_SECRET` for the variable name, and your Client secret for the value.
+       - Repeat the last step again, enter `SPOTIPY_CLIENT_SECRET` for the variable name, and your Client secret for the value.
 
 ## Usage
 
